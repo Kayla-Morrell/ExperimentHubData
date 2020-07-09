@@ -18,6 +18,7 @@ exportClasses(ExperimentHubMetadata)
 
 export(
   ExperimentHubMetadata,
+  testExperimentHubMetadata,
   makeExperimentHubMetadata,
   addResources
 )

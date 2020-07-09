@@ -22,6 +22,59 @@ globalVariables(c("BiocVersion", "Coordinate_1_based", "DataProvider",
                   "SourceType", "SourceUrl", "SourceVersion", "Species",
                   "TaxonomyId", "Title", "PreparerClass"))
 
+testExperimentHubMetadata <- function(packageName, metadataFile)
+{
+    ## metadataFile is the full path to the metadata.csv file
+    .package <- packageName # alias for consistency with code in other functions
+    stopifnot(
+        is.character(.package), length(.package) == 1L, nzchar(.package),
+        !is.na(.package),
+        is.character(metadataFile), length(metadataFile) == 1L,
+        nzchar(metadataFile), !is.na(metadataFile),
+        file.exists(metadataFile)
+    )
+
+    meta <- AnnotationHubData:::.readMetadataFromCsvFile(metadataFile)
+    meta$PreparerClass <- packageName
+    if ("tags" %in% tolower(names(meta)))
+        message("Tags are specified by biocViews entry in the",
+                " DESCRIPTION file.\nIgnoring Tags in the metadata file.")
+    description <- read.dcf(system.file("DESCRIPTION", package = .package))
+    .tags <- strsplit(gsub("\\s", "", description[,"biocViews"]), ",")[[1]]
+    .checkValidViews(.tags, "ExperimentData")
+    .RDataPaths <- meta$RDataPath
+    .Location_Prefix <- meta$Location_Prefix
+    if (any(.Location_Prefix %in% "http://s3.amazonaws.com/annotationhub/")){
+        .Location_Prefix[which(.Location_Prefix == "http://s3.amazonaws.com/annotationhub/")] = 'http://s3.amazonaws.com/experimenthub/'
+    }
+    ## instantiate ExperimentHubMetadata objects for each row, as test
+    ## of validity
+    lapply(seq_len(nrow(meta)), function(x) {
+        with(meta[x,], {
+            ExperimentHubMetadata(
+                Title=Title, Description=Description,
+                BiocVersion=BiocVersion, Genome=Genome,
+                SourceType=SourceType,
+                SourceUrl=SourceUrl,
+                SourceVersion=SourceVersion,
+                Species=Species, TaxonomyId=TaxonomyId,
+                Coordinate_1_based=Coordinate_1_based,
+                DataProvider=DataProvider,
+                Maintainer=Maintainer,
+                RDataClass=RDataClass, Tags=.tags,
+                RDataDateAdded=RDataDateAdded,
+                RDataPath=.RDataPaths[[x]],
+                DispatchClass=DispatchClass,
+                PreparerClass=PreparerClass,
+                Location_Prefix=.Location_Prefix[[x]]
+            )
+        })
+    })
+
+    ## if we've got this far, the file is valid
+    TRUE
+}
+
 makeExperimentHubMetadata <- function(pathToPackage, fileName=character())
 {
     ## Differences from makeAnnotationHubMetadata:
@@ -36,7 +89,6 @@ makeExperimentHubMetadata <- function(pathToPackage, fileName=character())
                 " DESCRIPTION file.\nIgnoring Tags in the metadata file.")
     description <- read.dcf(file.path(pathToPackage, "DESCRIPTION"))
     .tags <- strsplit(gsub("\\s", "", description[,"biocViews"]), ",")[[1]]
-    if (length(.tags) <= 1) stop("Add 2 or more biocViews to your DESCRIPTION")
     .checkValidViews(.tags, "ExperimentData")
     .RDataPaths <- meta$RDataPath
     .Location_Prefix <- meta$Location_Prefix
